@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Receipt Upload · PromoterHub</title>
+<style>
+:root{--bg:#fff;--bg2:#F7F6F3;--bg3:#EFEDE8;--t1:#1f1f1d;--t2:#5F5E5A;--t3:#9A9890;--bl:rgba(0,0,0,.08);--bm:rgba(0,0,0,.16);--ac:#1f1f1d;--ok:#047857;--err:#B91C1C}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg2);color:var(--t1);font-size:15px;line-height:1.45;min-height:100vh;padding:max(16px,env(safe-area-inset-top)) 16px 40px}
+.wrap{max-width:480px;margin:0 auto}
+.brand{font-size:13px;color:var(--t3);margin-bottom:4px}
+h1{font-size:21px;font-weight:600;margin-bottom:2px}
+.sub{font-size:13px;color:var(--t2);margin-bottom:18px}
+.card{background:var(--bg);border:1px solid var(--bl);border-radius:14px;padding:16px;margin-bottom:14px}
+label{display:block;font-size:13px;font-weight:600;margin:12px 0 5px}
+label small{display:block;font-weight:400;color:var(--t3);font-size:12px}
+label:first-child{margin-top:0}
+input[type=tel],input[type=text],input[type=number],textarea{width:100%;font-size:17px;padding:12px;border:1px solid var(--bm);border-radius:10px;background:#fff;color:var(--t1);font-family:inherit}
+input:focus,textarea:focus{outline:none;border-color:var(--t1);box-shadow:0 0 0 3px rgba(0,0,0,.08)}
+.rm{position:relative}.rm span{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--t2);font-size:17px}.rm input{padding-left:46px}
+button{font-family:inherit}
+.btn{width:100%;padding:14px;font-size:16px;font-weight:600;border:none;border-radius:12px;background:var(--ac);color:#fff;cursor:pointer;margin-top:16px}
+.btn:disabled{opacity:.45}
+.btn.ghost{background:#fff;color:var(--t1);border:1px solid var(--bm);margin-top:10px}
+.link{background:none;border:none;color:var(--t2);text-decoration:underline;font-size:13px;cursor:pointer}
+.msg{font-size:14px;border-radius:10px;padding:10px 12px;margin-top:12px;display:none}
+.msg.err{display:block;background:#FEE2E2;color:var(--err)}
+.msg.ok{display:block;background:#D1FAE5;color:var(--ok)}
+.job{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--bm);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;background:#fff}
+.job input{margin-top:3px;width:18px;height:18px;flex-shrink:0}
+.job.on{border-color:var(--t1);background:#FFFBEA}
+.job b{display:block;font-size:14px}
+.job small{color:var(--t2);font-size:12px}
+.photo-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px;border:2px dashed var(--bm);border-radius:12px;background:var(--bg2);font-size:15px;font-weight:600;color:var(--t1);cursor:pointer}
+#preview{display:none;margin-top:10px;border-radius:10px;max-width:100%;max-height:340px;object-fit:contain;background:var(--bg3);width:100%}
+.hello{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px}
+.hello b{font-size:17px}
+.rc{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--bl);font-size:13px}
+.rc:first-of-type{border-top:none}
+.rc span{color:var(--t2)}
+.empty{color:var(--t3);font-size:13px;text-align:center;padding:10px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">PromoterHub</div>
+  <h1>Receipt upload</h1>
+  <div class="sub">Send your sampling purchase receipt for claim.<br>Hantar resit pembelian sampling untuk tuntutan.</div>
+
+  <!-- SIGN IN -->
+  <div id="v-login" class="card hide">
+    <label for="phone">Phone number <small>Nombor telefon</small></label>
+    <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="012-345 6789">
+    <label for="ic4">Last 4 digits of your IC <small>4 digit terakhir IC anda</small></label>
+    <input id="ic4" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+    <button class="btn" id="b-login" onclick="login()">Continue / Teruskan</button>
+    <div id="m-login" class="msg"></div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div id="v-main" class="hide">
+    <div class="hello"><div>Hi <b id="who"></b></div><button class="link" onclick="logout()">Not you? / Bukan anda?</button></div>
+    <div class="card">
+      <label>Which job? <small>Pilih kerja</small></label>
+      <div id="jobs"></div>
+      <label for="amt">Receipt amount <small>Jumlah resit</small></label>
+      <div class="rm"><span>RM</span><input id="amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
+      <label for="item">What did you buy? <small>Barang yang dibeli (cth: air mineral untuk sampling)</small></label>
+      <input id="item" type="text" maxlength="200" placeholder="e.g. mineral water for sampling">
+      <label>Receipt photo <small>Gambar resit — pastikan jelas & penuh</small></label>
+      <label class="photo-btn" for="file">📷 Take / choose photo</label>
+      <input id="file" type="file" accept="image/*" capture="environment" class="hide" onchange="pickPhoto(this)">
+      <img id="preview" alt="Receipt preview">
+      <button class="btn" id="b-send" onclick="send()">Send receipt / Hantar</button>
+      <div id="m-send" class="msg"></div>
+    </div>
+    <div class="card">
+      <label>Your receipts <small>Resit anda</small></label>
+      <div id="mine"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbxKVKm9i9OCeIcUJlX3F33K7Vb8fOdd39BscSTLsWUDWd2j_w7XkFiHQG9Jq2eJ7A2Y/exec';
+const TK='ph_rc_token';
+let token=null, photo=null, jobId=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=iso=>new Date(iso+'T12:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+function show(v){ $('v-login').classList.toggle('hide',v!=='login'); $('v-main').classList.toggle('hide',v!=='main'); }
+function msg(id,t,kind){ const m=$(id); m.className='msg'+(t?' '+(kind||'err'):''); m.textContent=t||''; }
+try{ token=localStorage.getItem(TK); }catch(e){}
+
+async function call(action,data){
+  const r=await fetch(API,{method:'POST',body:JSON.stringify({action,data})});
+  const j=await r.json();
+  if(!j.ok) throw new Error(j.error||'Something went wrong');
+  return j.data;
+}
+
+async function login(){
+  const b=$('b-login'); msg('m-login','');
+  b.disabled=true; b.innerHTML='<span class="spin"></span>Checking…';
+  try{
+    const d=await call('rcLogin',{phone:$('phone').value, ic4:$('ic4').value});
+    token=d.token; try{ localStorage.setItem(TK,token); }catch(e){}
+    await load();
+  }catch(e){ msg('m-login', e.message==='Failed to fetch'?'No connection — please try again.':e.message); }
+  b.disabled=false; b.textContent='Continue / Teruskan';
+}
+function logout(){ token=null; try{ localStorage.removeItem(TK); }catch(e){} $('phone').value=''; $('ic4').value=''; show('login'); }
+
+async function load(){
+  try{
+    const d=await call('rcJobs',{token});
+    $('who').textContent=d.name;
+    const jobs=d.jobs||[];
+    $('jobs').innerHTML = jobs.length ? jobs.map((j,i)=>`<label class="job" data-id="${esc(j.id)}">
+        <input type="radio" name="job" value="${esc(j.id)}" ${jobs.length===1?'checked':''}>
+        <div><b>${esc(j.name)}</b><small>${fmt(j.sdate)}${j.edate&&j.edate!==j.sdate?' – '+fmt(j.edate):''} · ${esc(j.outlet)}</small></div></label>`).join('')
+      : '<div class="empty">No jobs found for you in the last 2 months. Contact Kareen.<br>Tiada kerja dijumpai. Sila hubungi Kareen.</div>';
+    $('jobs').querySelectorAll('.job').forEach(l=>l.addEventListener('change',()=>{ $('jobs').querySelectorAll('.job').forEach(x=>x.classList.toggle('on',x.querySelector('input').checked)); }));
+    if(jobs.length===1) $('jobs').querySelector('.job').classList.add('on');
+    const rc=d.receipts||[];
+    $('mine').innerHTML = rc.length ? rc.map(r=>`<div class="rc"><div>${esc(r.evName)}<br><span>${esc(r.item)}</span></div><div style="text-align:right;white-space:nowrap"><b>RM ${Number(r.amount).toFixed(2)}</b><br><span>${new Date(r.ts).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span></div></div>`).join('')
+      : '<div class="empty">No receipts yet. / Belum ada resit.</div>';
+    show('main');
+  }catch(e){ if(/sign in/i.test(e.message)){ logout(); msg('m-login',e.message); } else { show('main'); msg('m-send', e.message==='Failed to fetch'?'No connection — please try again.':e.message); } }
+}
+
+// Shrink the photo on the phone before sending (max ~1600px, ~300–600 KB)
+function pickPhoto(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  msg('m-send','');
+  const img=new Image(), url=URL.createObjectURL(f);
+  img.onload=()=>{
+    const max=1600, k=Math.min(1, max/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement('canvas'); c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k);
+    const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height);
+    let q=0.75, data=c.toDataURL('image/jpeg',q);
+    while(data.length>1400000 && q>0.35){ q-=0.1; data=c.toDataURL('image/jpeg',q); }
+    photo=data.split(',')[1];
+    $('preview').src=data; $('preview').style.display='block';
+    URL.revokeObjectURL(url);
+  };
+  img.onerror=()=>{ msg('m-send','Could not read this photo. Please take a new photo. / Gambar tidak dapat dibaca.'); };
+  img.src=url;
+}
+
+async function send(){
+  const sel=document.querySelector('input[name=job]:checked');
+  const amt=$('amt').value, item=$('item').value.trim();
+  if(!sel) return msg('m-send','Choose the job first. / Pilih kerja dahulu.');
+  if(!(Number(amt)>0)) return msg('m-send','Enter the receipt amount. / Masukkan jumlah resit.');
+  if(!item) return msg('m-send','Write what you bought. / Tulis barang yang dibeli.');
+  if(!photo) return msg('m-send','Add the receipt photo. / Tambah gambar resit.');
+  const b=$('b-send'); b.disabled=true; b.innerHTML='<span class="spin"></span>Sending…'; msg('m-send','');
+  try{
+    await call('rcUpload',{token, evId:sel.value, amount:amt, item, image:photo});
+    $('amt').value=''; $('item').value=''; photo=null; $('preview').style.display='none'; $('file').value='';
+    msg('m-send','✓ Receipt sent. Thank you! / Resit dihantar. Terima kasih!','ok');
+    await load();
+  }catch(e){ msg('m-send', e.message==='Failed to fetch'?'No connection — please try again. Your details are still here.':e.message); }
+  b.disabled=false; b.textContent='Send receipt / Hantar';
+}
+
+if(token) load(); else show('login');
+</script>
+</body>
+</html>
