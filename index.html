@@ -513,6 +513,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .cl-norc{display:inline-block;margin-top:3px;font-size:11px;color:var(--t3);border:1px dashed var(--bm);border-radius:10px;padding:1px 8px;white-space:nowrap}
 .cl-in.prin{background:#EFF6FF !important;border-color:#BFDBFE !important;color:#1E40AF;font-weight:600}
 .cl-prn{display:block;margin-top:3px;font-size:10.5px;font-weight:600;color:#B45309;white-space:nowrap}.cl-prn.src{color:#93A3B8;font-weight:400}
+.clt td.prt{color:#1E40AF;background:#F5F9FF}
 .cl-pr{display:inline-block;font-weight:600;color:#1E40AF;background:#EFF6FF;border-radius:6px;padding:3px 8px;white-space:nowrap}.cl-pr.none{color:var(--t3);background:none;font-weight:400}
 .clt th.pr{background:#DBEAFE !important;color:#1E40AF}
 .cl-rc{display:inline-block;margin-top:3px;font-size:11px;font-weight:600;border:1px solid #E6B800;background:#FFF6CC;color:#7A5D00;border-radius:10px;padding:1px 8px;cursor:pointer;white-space:nowrap}
@@ -3536,6 +3537,13 @@ async function pullRates(){
   try{ const d=await apiGet('getRates'); if(Array.isArray(d)){ const ch=JSON.stringify(d)!==JSON.stringify(promRates); promRates=d; saveJ('prohub_rates_cache',d); if(ch && curPage==='claims') renderClaims(); } }
   catch(e){ /* older backend or offline */ }
 }
+function promRateVals(r){
+  const nk=clKey(r.name||''), ids=(r.evIds||[]).map(String);
+  return [...new Set((promRates||[]).filter(x=>ids.includes(String(x.evId)) && x.nameKey===nk && x.rate>0).map(x=>Number(x.rate)))];
+}
+function promRateVal(r){ if(r.prate!==undefined && r.prate!=='' && r.prate!==null) return clNum(r.prate); const v=promRateVals(r); return v.length===1?v[0]:null; }
+// Total (Promoter) = RM/day (Promoter) × working days + public holiday + claim of promoter (null if no promoter rate)
+function promRowTotal(ag,r){ const pr=promRateVal(r); if(pr==null) return null; const t=claimRowTotal(ag,r), n=v=>clNum(v)||0; return Math.round((pr*t.days+n(r.ph)+n(r.claim))*100)/100; }
 // RM/day (Promoter): filled from what the promoter entered on the link; you can type over it (saved in the claim, never exported)
 function promRateCell(r, inp){
   const nk=clKey(r.name||''), ids=(r.evIds||[]).map(String);
@@ -3951,30 +3959,33 @@ function clTableHtml(ag,rows,locked,tot){
   const del=r=>locked?'':`<td class="cl-x"><button title="Remove row" onclick="clRemoveRow('${promEsc(r.key).replace(/'/g,"\\'")}')">×</button></td>`;
   const money=v=>(Math.round(v*100)/100).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
   let head, body;
+  const ptCell=r=>{ const v=promRowTotal(ag,r); return `<td class="c b prt">${v==null?'<span class="cl-pr none" title="No RM/day (Promoter) yet">—</span>':money(v)}</td>`; };
+  const pvals=rows.map(r=>promRowTotal(ag,r)), pmiss=pvals.filter(v=>v==null).length, ptot=pvals.reduce((t,v)=>t+(v||0),0);
+  const ptTot=`<td class="c b prt" title="${pmiss?pmiss+' line(s) without RM/day (Promoter) are not included':'All lines included'}">${money(ptot)}${pmiss?`<span class="cl-prn">${pmiss} line${pmiss>1?'s':''} missing</span>`:''}</td>`;
   if(ag==='MD'){
     const dates=[...new Set(rows.flatMap(r=>r.dates))].sort();
     const dl=d=>d.slice(8,10)+'-'+dayLbl(d,{month:'short'});
-    head=`<tr><th>Project</th><th>Area</th><th>Outlet</th>${dates.map(d=>`<th class="d">${dl(d)}</th>`).join('')}<th>Working Time</th><th>Promoter Name</th><th>Contact Number</th><th>IC Number</th><th>Salary / day</th><th class="pr">RM/day (Promoter)</th><th>Days</th><th>Public Holiday</th><th>Claim of promoter</th><th>Total Promoter Salary</th><th>Remark (Promoter)</th><th class="sv">Supervisor Rate / Day</th><th class="sv">No. of Day</th><th class="sv">Others (Claim)</th><th class="sv">Total Supervisor fees</th><th class="sv">Remark</th>${locked?'':'<th></th>'}</tr>`;
+    head=`<tr><th>Project</th><th>Area</th><th>Outlet</th>${dates.map(d=>`<th class="d">${dl(d)}</th>`).join('')}<th>Working Time</th><th>Promoter Name</th><th>Contact Number</th><th>IC Number</th><th>Salary / day</th><th class="pr">RM/day (Promoter)</th><th>Days</th><th>Public Holiday</th><th>Claim of promoter</th><th>Total Promoter Salary</th><th class="pr">Total (Promoter)</th><th>Remark (Promoter)</th><th class="sv">Supervisor Rate / Day</th><th class="sv">No. of Day</th><th class="sv">Others (Claim)</th><th class="sv">Total Supervisor fees</th><th class="sv">Remark</th>${locked?'':'<th></th>'}</tr>`;
     body=rows.map(r=>{ const t=claimRowTotal(ag,r);
       return `<tr><td>${inp(r,'project',r.project)}</td><td>${inp(r,'area',r.area,'s')}</td><td>${inp(r,'outlet',r.outlet)}</td>
         ${dates.map(d=>`<td class="d">${locked?(r.dates.includes(d)?'1':''):`<button class="cl-day${r.dates.includes(d)?' on':''}" onclick="clToggleDate('${promEsc(r.key).replace(/'/g,"\\'")}','${d}')">${r.dates.includes(d)?'1':''}</button>`}</td>`).join('')}
         <td>${inp(r,'time',r.time,'s')}</td><td>${inp(r,'name',r.name)}</td><td>${inp(r,'phone',r.phone,'s')}</td><td>${inp(r,'ic',r.ic,'s')}</td>
         <td>${inp(r,'rate',r.rate,'n')}</td>${promRateCell(r,inp)}<td class="c">${t.days}</td><td>${inp(r,'ph',r.ph,'n')}</td><td>${inp(r,'claim',r.claim,claimMis(r)?'n mis':'n')}${rcBadge(r)}${claimNote(r)}</td>
-        <td class="c b">${money(t.sal)}</td><td>${inp(r,'remark',r.remark,'w')}</td>
+        <td class="c b">${money(t.sal)}</td>${ptCell(r)}<td>${inp(r,'remark',r.remark,'w')}</td>
         <td>${inp(r,'sup',r.sup,'n')}</td><td class="c">${t.days}</td><td>${inp(r,'others',r.others,'n')}</td><td class="c b">${money(t.sup)}</td><td>${inp(r,'remark2',r.remark2,'w')}</td>${del(r)}</tr>`; }).join('');
     const span=3+dates.length+9;
-    body+=`<tr class="tot"><td colspan="${span}" style="text-align:right">Total</td><td class="c b red">${money(tot.sal)}</td><td colspan="4"></td><td class="c b red">${money(tot.sup)}</td><td></td>${locked?'':'<td></td>'}</tr>
-      <tr class="tot"><td colspan="${span+5}" style="text-align:right"><span class="cl-bank">TOTAL AMOUNT TO BANK IN</span></td><td class="c b red">${money(tot.all)}</td><td></td>${locked?'':'<td></td>'}</tr>`;
+    body+=`<tr class="tot"><td colspan="${span}" style="text-align:right">Total</td><td class="c b red">${money(tot.sal)}</td>${ptTot}<td colspan="4"></td><td class="c b red">${money(tot.sup)}</td><td></td>${locked?'':'<td></td>'}</tr>
+      <tr class="tot"><td colspan="${span+6}" style="text-align:right"><span class="cl-bank">TOTAL AMOUNT TO BANK IN</span></td><td class="c b red">${money(tot.all)}</td><td></td>${locked?'':'<td></td>'}</tr>`;
   } else if(ag==='DS'){
-    head=`<tr><th>Project</th><th>Outlet</th><th>Working Date</th><th>RM/day</th><th class="pr">RM/day (Promoter)</th><th>Working days</th><th>Public Holiday</th><th>Claim of promoter</th><th>Total Amount</th><th>Remark</th><th>Your Name</th>${locked?'':'<th></th>'}</tr>`;
+    head=`<tr><th>Project</th><th>Outlet</th><th>Working Date</th><th>RM/day</th><th class="pr">RM/day (Promoter)</th><th>Working days</th><th>Public Holiday</th><th>Claim of promoter</th><th>Total Amount</th><th class="pr">Total (Promoter)</th><th>Remark</th><th>Your Name</th>${locked?'':'<th></th>'}</tr>`;
     body=rows.map(r=>{ const t=claimRowTotal(ag,r);
-      return `<tr><td>${inp(r,'project',r.project)}</td><td>${inp(r,'outlet',r.outlet)}</td><td>${inp(r,'dateText',r.dateText,'w')}</td><td>${inp(r,'rate',r.rate,'n')}</td>${promRateCell(r,inp)}<td>${inp(r,'days',r.days,'n')}</td><td>${inp(r,'ph',r.ph,'n')}</td><td>${inp(r,'claim',r.claim,claimMis(r)?'n mis':'n')}${rcBadge(r)}${claimNote(r)}</td><td class="c b">${money(t.sal)}</td><td>${inp(r,'remark',r.remark,'w')}</td><td>${inp(r,'name',r.name)}</td>${del(r)}</tr>`; }).join('');
-    body+=`<tr class="tot"><td colspan="8" style="text-align:right">Total</td><td class="c b red">${money(tot.sal)}</td><td colspan="2"></td>${locked?'':'<td></td>'}</tr>`;
+      return `<tr><td>${inp(r,'project',r.project)}</td><td>${inp(r,'outlet',r.outlet)}</td><td>${inp(r,'dateText',r.dateText,'w')}</td><td>${inp(r,'rate',r.rate,'n')}</td>${promRateCell(r,inp)}<td>${inp(r,'days',r.days,'n')}</td><td>${inp(r,'ph',r.ph,'n')}</td><td>${inp(r,'claim',r.claim,claimMis(r)?'n mis':'n')}${rcBadge(r)}${claimNote(r)}</td><td class="c b">${money(t.sal)}</td>${ptCell(r)}<td>${inp(r,'remark',r.remark,'w')}</td><td>${inp(r,'name',r.name)}</td>${del(r)}</tr>`; }).join('');
+    body+=`<tr class="tot"><td colspan="8" style="text-align:right">Total</td><td class="c b red">${money(tot.sal)}</td>${ptTot}<td colspan="2"></td>${locked?'':'<td></td>'}</tr>`;
   } else {
-    head=`<tr><th>Project</th><th>Outlet</th><th>Claim for Date</th><th>Promoter Name</th><th>Salary / day</th><th class="pr">RM/day (Promoter)</th><th>Working days</th><th>Total Claim</th><th>PB Holiday</th><th>Remark</th><th>Total Amount (P)</th>${locked?'':'<th></th>'}</tr>`;
+    head=`<tr><th>Project</th><th>Outlet</th><th>Claim for Date</th><th>Promoter Name</th><th>Salary / day</th><th class="pr">RM/day (Promoter)</th><th>Working days</th><th>Total Claim</th><th>PB Holiday</th><th>Remark</th><th>Total Amount (P)</th><th class="pr">Total (Promoter)</th>${locked?'':'<th></th>'}</tr>`;
     body=rows.map(r=>{ const t=claimRowTotal(ag,r);
-      return `<tr><td>${inp(r,'project',r.project)}</td><td>${inp(r,'outlet',r.outlet)}</td><td>${inp(r,'dateText',r.dateText,'w')}</td><td>${inp(r,'name',r.name)}</td><td>${inp(r,'rate',r.rate,'n')}</td>${promRateCell(r,inp)}<td>${inp(r,'days',r.days,'n')}</td><td>${inp(r,'claim',r.claim,claimMis(r)?'n mis':'n')}${rcBadge(r)}${claimNote(r)}</td><td>${inp(r,'ph',r.ph,'n')}</td><td>${inp(r,'remark',r.remark,'w')}</td><td class="c b">${money(t.sal)}</td>${del(r)}</tr>`; }).join('');
-    body+=`<tr class="tot"><td colspan="10" style="text-align:right">Total</td><td class="c b red">${money(tot.sal)}</td>${locked?'':'<td></td>'}</tr>`;
+      return `<tr><td>${inp(r,'project',r.project)}</td><td>${inp(r,'outlet',r.outlet)}</td><td>${inp(r,'dateText',r.dateText,'w')}</td><td>${inp(r,'name',r.name)}</td><td>${inp(r,'rate',r.rate,'n')}</td>${promRateCell(r,inp)}<td>${inp(r,'days',r.days,'n')}</td><td>${inp(r,'claim',r.claim,claimMis(r)?'n mis':'n')}${rcBadge(r)}${claimNote(r)}</td><td>${inp(r,'ph',r.ph,'n')}</td><td>${inp(r,'remark',r.remark,'w')}</td><td class="c b">${money(t.sal)}</td>${ptCell(r)}${del(r)}</tr>`; }).join('');
+    body+=`<tr class="tot"><td colspan="10" style="text-align:right">Total</td><td class="c b red">${money(tot.sal)}</td>${ptTot}${locked?'':'<td></td>'}</tr>`;
   }
   return `<div class="cl-wrap"><table class="clt ${ag}"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
